@@ -19,7 +19,16 @@
 #define LED_PIN		      8
 #define LED_IDX_MASK    (1<<LED_PIN)
 
+#define LED3_PIO_ID	    ID_PIOB
+#define LED3_PIO        PIOB
+#define LED3_PIN		  2
+#define LED3_IDX_MASK    (1<<LED3_PIN)
+
 volatile char flag_tc = 0;
+volatile char flag_tc2 = 0;
+
+
+
 void LED_init(int estado);
 void TC_init(Tc * TC, int ID_TC, int TC_CHANNEL, int freq);
 
@@ -70,6 +79,21 @@ void TC1_Handler(void){
 
 	/** Muda o estado do LED */
 	flag_tc = 1;
+}
+
+void TC2_Handler(void){
+	volatile uint32_t ul_dummy;
+
+	/****************************************************************
+	* Devemos indicar ao TC que a interrupção foi satisfeita.
+	******************************************************************/
+	ul_dummy = tc_get_status(TC0, 2);
+
+	/* Avoid compiler warning */
+	UNUSED(ul_dummy);
+
+	/** Muda o estado do LED */
+	flag_tc2 = 1;
 }
 
 void RTT_Handler(void)
@@ -126,6 +150,14 @@ void pisca_led(int n, int t, int n_led){
 			delay_ms(t);
 		}
 	}
+	if(n_led == 3){
+		for (int i=0;i<n;i++){
+			pio_clear(LED3_PIO, LED3_IDX_MASK);
+			delay_ms(t);
+			pio_set(LED3_PIO, LED3_IDX_MASK);
+			delay_ms(t);
+		}
+	}
 	if(n_led == 0){
 		for (int i=0;i<n;i++){
 			pio_clear(LED_PIO, LED_IDX_MASK);
@@ -143,6 +175,8 @@ void pisca_led(int n, int t, int n_led){
 void LED_init(int estado){
 	pmc_enable_periph_clk(LED1_PIO_ID);
 	pio_set_output(LED1_PIO, LED1_IDX_MASK, estado, 0, 0);
+	pmc_enable_periph_clk(LED3_PIO_ID);
+	pio_set_output(LED3_PIO, LED3_IDX_MASK, estado, 0, 0);
 	pmc_enable_periph_clk(LED_PIO_ID);
 	pio_set_output(LED_PIO, LED_IDX_MASK, estado, 0, 0 );
 };
@@ -277,16 +311,23 @@ int main (void)
 	
  /** Configura timer TC0, canal 1 */
 	TC_init(TC0, ID_TC1, 1, 4);
+	
+	/** Configura timer TC1, canal 1 */
+	TC_init(TC0, ID_TC2, 2, 5);
   
   // Escreve na tela um circulo e um texto
 	gfx_mono_draw_filled_circle(20, 16, 16, GFX_PIXEL_SET, GFX_WHOLE);
-    gfx_mono_draw_string("mundo", 50,16, &sysfont);
+    gfx_mono_draw_string("rique", 50,16, &sysfont);
 
   /* Insert application code here, after the board has been initialized. */
 	while(1) {
 		if(flag_tc){
 			pisca_led(1,10,1);
 			flag_tc = 0;
+		}
+		if(flag_tc2){
+			pisca_led(1,10,3);
+			flag_tc2 = 0;
 		}
 		if (f_rtt_alarme){
       
