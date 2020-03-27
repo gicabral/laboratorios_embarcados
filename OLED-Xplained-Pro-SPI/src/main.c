@@ -24,6 +24,11 @@
 #define LED3_PIN		  2
 #define LED3_IDX_MASK    (1<<LED3_PIN)
 
+/* variaveis globais                                                    */
+/************************************************************************/
+volatile Bool f_rtt_alarme = false;
+volatile char flag_rtc = 0;
+volatile char flag_rtc_t = 0;
 volatile char flag_tc = 0;
 volatile char flag_tc2 = 0;
 
@@ -46,11 +51,6 @@ typedef struct  {
   uint32_t minute;
   uint32_t seccond;
 } calendar;
-
-/* variaveis globais                                                    */
-/************************************************************************/
-volatile Bool f_rtt_alarme = false;
-volatile char flag_rtc = 0;
 
 
 /************************************************************************/
@@ -124,6 +124,7 @@ void RTC_Handler(void)
 	*/
 	if ((ul_status & RTC_SR_SEC) == RTC_SR_SEC) {
 		rtc_clear_status(RTC, RTC_SCCR_SECCLR);
+		flag_rtc_t = 1;
 	}
 	
 	/* Time or date alarm */
@@ -291,7 +292,7 @@ int main (void)
 	
 	/** Configura RTC */
 	calendar rtc_initial = {2018, 3, 19, 12, 15, 45 ,1};
-	RTC_init(RTC, ID_RTC, rtc_initial, RTC_IER_ALREN);
+	RTC_init(RTC, ID_RTC, rtc_initial, RTC_IER_ALREN | RTC_IER_SECEN);
 	
 	/* configura alarme do RTC */
 	rtc_set_date_alarm(RTC, 1, rtc_initial.month, 1, rtc_initial.day);
@@ -316,9 +317,11 @@ int main (void)
 	TC_init(TC0, ID_TC2, 2, 5);
   
   // Escreve na tela um circulo e um texto
-	gfx_mono_draw_filled_circle(20, 16, 16, GFX_PIXEL_SET, GFX_WHOLE);
-    gfx_mono_draw_string("rique", 50,16, &sysfont);
-
+	//gfx_mono_draw_filled_circle(20, 16, 16, GFX_PIXEL_SET, GFX_WHOLE);
+    //gfx_mono_draw_string("rique", 50,16, &sysfont);
+	
+	uint32_t h, m, s;
+	char timeBuffer[512];
   /* Insert application code here, after the board has been initialized. */
 	while(1) {
 		if(flag_tc){
@@ -342,6 +345,13 @@ int main (void)
       
 		  f_rtt_alarme = false;
 		}
+		if(flag_rtc_t){
+			rtc_get_time(RTC, &h, &m, &s);
+			sprintf(timeBuffer, "%2d:%2d:%2d", h, m, s);
+			gfx_mono_draw_string(timeBuffer, 50,16, &sysfont);
+			flag_rtc_t = 0;
+		}
+		
 		if(flag_rtc){
 			pisca_led(5, 200, 0);
 			flag_rtc = 0;
