@@ -6,7 +6,11 @@
 #include "conf_uart_serial.h"
 #include "maxTouch/maxTouch.h"
 #include "tfont.h"
+#include "logo.h"
+#include "logo1.h"
+#include "logo2.h"
 #include "digital521.h"
+
 
 /************************************************************************/
 /* prototypes                                                           */
@@ -53,6 +57,7 @@ typedef struct {
 	uint32_t y; 
 	uint8_t status;    
 	void (*callback)(t_but);
+	tImage image;
 } t_but;
 
 QueueHandle_t xQueueTouch;
@@ -122,7 +127,7 @@ static void configure_lcd(void){
 /************************************************************************/
 
 void draw_screen(void) {
-  ili9488_set_foreground_color(COLOR_CONVERT(COLOR_WHITE));
+  ili9488_set_foreground_color(COLOR_CONVERT(COLOR_BLUE));
   ili9488_draw_filled_rectangle(0, 0, ILI9488_LCD_WIDTH-1, ILI9488_LCD_HEIGHT-1);
 }
 
@@ -156,14 +161,17 @@ int process_touch(t_but botoes[], touchData touch, uint32_t n){
 
 void draw_button_new(t_but but){
 	uint32_t color;
-	if(but.status)
-	color = but.colorOn;
-	else
-	color = but.colorOff;
+	if(but.status){
+		ili9488_draw_pixmap(but.x-but.image.width/2, but.y-but.image.height/2, but.image.width, but.image.height, but.image.data);
+	}
+	else{
+		color = but.colorOff;
 
-	ili9488_set_foreground_color(COLOR_CONVERT(color));
-	ili9488_draw_filled_rectangle(but.x-but.width/2, but.y-but.height/2,
-	but.x+but.width/2, but.y+but.height/2);
+		ili9488_set_foreground_color(COLOR_CONVERT(color));
+		ili9488_draw_filled_rectangle(but.x-but.width/2, but.y-but.height/2,
+		but.x+but.width/2, but.y+but.height/2);
+	}
+	
 }
 
 /************************************************************************/
@@ -291,13 +299,13 @@ void task_lcd(void){
 
 	t_but but0 = {.width = 120, .height = 75,
 		.colorOn = COLOR_TOMATO, .colorOff = COLOR_BLACK,
-	.x = ILI9488_LCD_WIDTH/2, .y = 40, .status = 1, .callback = &but0_callback};
+	.x = ILI9488_LCD_WIDTH/2, .y = 140, .status = 1, .callback = &but0_callback, .image = logo};
 	t_but but1 = {.width = 120, .height = 75,
 		.colorOn = COLOR_GREEN, .colorOff = COLOR_BLACK,
-	.x = ILI9488_LCD_WIDTH/2, .y = 140, .status = 1, .callback = &but1_callback};
+	.x = ILI9488_LCD_WIDTH/2, .y = 240, .status = 1, .callback = &but1_callback, .image = logo1};
 	t_but but2 = {.width = 120, .height = 75,
 		.colorOn = COLOR_BLUE, .colorOff = COLOR_BLACK,
-	.x = ILI9488_LCD_WIDTH/2, .y = 240, .status = 1, .callback = &but2_callback};
+	.x = ILI9488_LCD_WIDTH/2, .y = 340, .status = 1, .callback = &but2_callback, .image = logo2};
 	uint8_t but0_status = 1;
 	draw_button_new(but0);
 	draw_button_new(but1);
