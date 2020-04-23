@@ -11,7 +11,6 @@
 /************************************************************************/
 /* prototypes                                                           */
 /************************************************************************/
-void but1_callback(void);
 
 
 /************************************************************************/
@@ -52,15 +51,11 @@ typedef struct {
 	uint32_t colorOff;  // cor do botão desligado
 	uint32_t x;         // posicao x
 	uint32_t y; 
-	uint8_t status;       
+	uint8_t status;    
+	void (*callback)(t_but);
 } t_but;
 
 QueueHandle_t xQueueTouch;
-
-/************************************************************************/
-/* handler/callbacks                                                    */
-/************************************************************************/
-
 
 /************************************************************************/
 /* RTOS hooks                                                           */
@@ -169,6 +164,22 @@ void draw_button_new(t_but but){
 	ili9488_set_foreground_color(COLOR_CONVERT(color));
 	ili9488_draw_filled_rectangle(but.x-but.width/2, but.y-but.height/2,
 	but.x+but.width/2, but.y+but.height/2);
+}
+
+/************************************************************************/
+/* handler/callbacks                                                    */
+/************************************************************************/
+void but0_callback(t_but *but){
+	but->status = ! but->status;
+	draw_button_new(*but);
+}
+void but1_callback(t_but *but){
+	but->status = ! but->status;
+	draw_button_new(*but);
+}
+void but2_callback(t_but *but){
+	but->status = ! but->status;
+	draw_button_new(*but);
 }
 
 uint32_t convert_axis_system_x(uint32_t touch_y) {
@@ -280,13 +291,13 @@ void task_lcd(void){
 
 	t_but but0 = {.width = 120, .height = 75,
 		.colorOn = COLOR_TOMATO, .colorOff = COLOR_BLACK,
-	.x = ILI9488_LCD_WIDTH/2, .y = 40, .status = 1};
+	.x = ILI9488_LCD_WIDTH/2, .y = 40, .status = 1, .callback = &but0_callback};
 	t_but but1 = {.width = 120, .height = 75,
 		.colorOn = COLOR_GREEN, .colorOff = COLOR_BLACK,
-	.x = ILI9488_LCD_WIDTH/2, .y = 140, .status = 1};
+	.x = ILI9488_LCD_WIDTH/2, .y = 140, .status = 1, .callback = &but1_callback};
 	t_but but2 = {.width = 120, .height = 75,
 		.colorOn = COLOR_BLUE, .colorOff = COLOR_BLACK,
-	.x = ILI9488_LCD_WIDTH/2, .y = 240, .status = 1};
+	.x = ILI9488_LCD_WIDTH/2, .y = 240, .status = 1, .callback = &but2_callback};
 	uint8_t but0_status = 1;
 	draw_button_new(but0);
 	draw_button_new(but1);
@@ -302,8 +313,9 @@ void task_lcd(void){
 		if (xQueueReceive( xQueueTouch, &(touch), ( TickType_t )  500 / portTICK_PERIOD_MS)) {
 			int b = process_touch(botoes, touch, 3);
 			if(b >= 0){
-				botoes[b].status = !botoes[b].status;
-				draw_button_new(botoes[b]);
+				//botoes[b].status = !botoes[b].status;
+				//draw_button_new(botoes[b]);
+				botoes[b].callback((&botoes[b]));
 			}
 
 			printf("x:%d y:%d\n", touch.x, touch.y);
