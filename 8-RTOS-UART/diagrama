@@ -1,0 +1,14 @@
+led
+|
+^
+|
+execute
+^
+|
+lcd
+^
+|
+mxt
+
+
+Pega a queue touch do lcd pelo mxt e manda para atsk lcd, gera um comand e o envia para xQueueCommand. 
