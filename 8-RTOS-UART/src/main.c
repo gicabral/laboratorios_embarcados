@@ -3,6 +3,7 @@
 */
 
 #include <asf.h>
+#include <string.h>
 #include "conf_board.h"
 
 #define TASK_MONITOR_STACK_SIZE            (2048/sizeof(portSTACK_TYPE))
@@ -46,37 +47,30 @@
 #define BUT3_PIO_IDX		19
 #define BUT3_PIO_IDX_MASK	(1 << BUT3_PIO_IDX)
 
+#define TASK_UARTCHAR_STACK_SIZE (1024 / sizeof(portSTACK_TYPE))
+#define TASK_UARTCHAR_STACK_PRIORITY (tskIDLE_PRIORITY)
+#define TASK_EXECUTE_STACK_SIZE (1024 / sizeof(portSTACK_TYPE))
+#define TASK_EXECUTE_STACK_PRIORITY (tskIDLE_PRIORITY)
 /** Semaforo a ser usado pela task led 
     tem que ser var global! */
 SemaphoreHandle_t xSemaphore;
 SemaphoreHandle_t xSemaphore2;
 SemaphoreHandle_t xSemaphore3;
+QueueHandle_t xQueueChar;
+QueueHandle_t xQueueCommand;
+QueueHandle_t xQueueLED1;
+QueueHandle_t xQueueLED2;
+QueueHandle_t xQueueLED3;
+QueueHandle_t xQueueLED1l;
+QueueHandle_t xQueueLED2l;
+QueueHandle_t xQueueLED3l;
+
 
 
 /**
 * callback do botao
 * libera semaforo: xSemaphore
 */
-void but1_callback(void){
-	BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-	printf("but_callback \n");
-	xSemaphoreGiveFromISR(xSemaphore, &xHigherPriorityTaskWoken);
-	printf("semafaro tx \n");
-}
-
-void but2_callback(void){
-	BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-	printf("but_callback2 \n");
-	xSemaphoreGiveFromISR(xSemaphore2, &xHigherPriorityTaskWoken);
-	printf("semafaro tx \n");
-}
-
-void but3_callback(void){
-	BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-	printf("but_callback3 \n");
-	xSemaphoreGiveFromISR(xSemaphore3, &xHigherPriorityTaskWoken);
-	printf("semafaro tx \n");
-}
 
 extern void vApplicationStackOverflowHook(xTaskHandle *pxTask,
 		signed char *pcTaskName);
@@ -143,6 +137,33 @@ static void task_monitor(void *pvParameters)
 		vTaskDelay(xDelay);
 	}
 }
+void pin_toggle(Pio *pio, uint32_t mask)
+{
+	if (pio_get_output_data_status(pio, mask))
+	pio_clear(pio, mask);
+	else
+	pio_set(pio, mask);
+}
+void but1_callback(void){
+	BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+	printf("but_callback \n");
+	xSemaphoreGiveFromISR(xSemaphore, &xHigherPriorityTaskWoken);
+	printf("semafaro tx \n");
+}
+
+void but2_callback(void){
+	BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+	printf("but_callback2 \n");
+	xSemaphoreGiveFromISR(xSemaphore2, &xHigherPriorityTaskWoken);
+	printf("semafaro tx \n");
+}
+
+void but3_callback(void){
+	BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+	printf("but_callback3 \n");
+	xSemaphoreGiveFromISR(xSemaphore3, &xHigherPriorityTaskWoken);
+	printf("semafaro tx \n");
+}
 
 /**
  * \brief This task, when activated, make LED blink at a fixed rate
@@ -183,15 +204,25 @@ static void task_led1(void *pvParameters){
 	
 	const TickType_t xDelay = 1500 / portTICK_PERIOD_MS;
 	const TickType_t xDelay2 = 100 / portTICK_PERIOD_MS;
+	xQueueLED1 = xQueueCreate(5, sizeof(int));
+	xQueueLED1l = xQueueCreate(5, sizeof(int));
+	
+	int i;
+	int j;
 
 	for (;;) {
-		for(int i = 0; i<3; i++){
-			pio_clear(LED1_PIO, LED1_PIO_IDX_MASK);
-			vTaskDelay(xDelay2);
-			pio_set(LED1_PIO, LED1_PIO_IDX_MASK);
-			vTaskDelay(xDelay2);
+		if (xQueueReceive(xQueueLED1l, &(i), (TickType_t)500)) {
+			if (i) {
+				pio_clear(LED1_PIO, LED1_PIO_IDX_MASK);
+				} else {
+				pio_set(LED1_PIO, LED1_PIO_IDX_MASK);
+			}
 		}
-		vTaskDelay(xDelay);
+		if (xQueueReceive(xQueueLED1, &(j), (TickType_t)500)) {
+			if (j) {
+				pin_toggle(LED1_PIO, LED1_PIO_IDX_MASK);
+			}
+		}
 		
 	}
 }
@@ -212,19 +243,28 @@ static void task_led2(void *pvParameters){
 	const TickType_t xDelay = 1500 / portTICK_PERIOD_MS;
 	const TickType_t xDelay2 = 100 / portTICK_PERIOD_MS;
 	
+	xQueueLED2 = xQueueCreate(5, sizeof(int));
+	xQueueLED2l = xQueueCreate(5, sizeof(int));
+	
+	int i;
+	int j;
+	
 	if (xSemaphore2 == NULL){
 		printf("falha em criar o semaforo \n");
 	}
 	
 	for (;;) {
-		if( xSemaphoreTake(xSemaphore2, ( TickType_t ) 500) == pdTRUE ){
-			for(int i = 0; i<3; i++){
+		if (xQueueReceive(xQueueLED2l, &(i), (TickType_t)500)) {
+			if (i) {
 				pio_clear(LED2_PIO, LED2_PIO_IDX_MASK);
-				vTaskDelay(xDelay2);
+				} else {
 				pio_set(LED2_PIO, LED2_PIO_IDX_MASK);
-				vTaskDelay(xDelay2);
 			}
-			vTaskDelay(xDelay);	
+		}
+		if (xQueueReceive(xQueueLED2, &(j), (TickType_t)500)) {
+			if (j) {
+				pin_toggle(LED2_PIO, LED2_PIO_IDX_MASK);
+			}
 		}
 	}
 }
@@ -245,21 +285,94 @@ static void task_led3(void *pvParameters){
 	const TickType_t xDelay = 1500 / portTICK_PERIOD_MS;
 	const TickType_t xDelay2 = 100 / portTICK_PERIOD_MS;
 	
+	xQueueLED3 = xQueueCreate(5, sizeof(int));
+	xQueueLED3l = xQueueCreate(5, sizeof(int));
+	
 	if (xSemaphore3 == NULL){
 		printf("falha em criar o semaforo \n");
 	}
 	
+	int i;
+	int j;
+	
 	for (;;) {
-		if( xSemaphoreTake(xSemaphore3, ( TickType_t ) 500) == pdTRUE ){
-			for(int i = 0; i<3; i++){
+		if (xQueueReceive(xQueueLED3l, &(i), (TickType_t)500)) {
+			if (i) {
 				pio_clear(LED3_PIO, LED3_PIO_IDX_MASK);
-				vTaskDelay(xDelay2);
+				} else {
 				pio_set(LED3_PIO, LED3_PIO_IDX_MASK);
-				vTaskDelay(xDelay2);
 			}
-			vTaskDelay(xDelay);
+		}
+		if (xQueueReceive(xQueueLED3, &(j), (TickType_t)500)) {
+			if (j) {
+				pin_toggle(LED3_PIO, LED3_PIO_IDX_MASK);
+			}
 		}
 	}
+}
+static void USART1_init(void){
+	/* Configura USART1 Pinos */
+	sysclk_enable_peripheral_clock(ID_PIOB);
+	sysclk_enable_peripheral_clock(ID_PIOA);
+	pio_set_peripheral(PIOB, PIO_PERIPH_D, PIO_PB4); // RX
+	pio_set_peripheral(PIOA, PIO_PERIPH_A, PIO_PA21); // TX
+	MATRIX->CCFG_SYSIO |= CCFG_SYSIO_SYSIO4;
+
+	/* Configura opcoes USART */
+	const sam_usart_opt_t usart_settings = {
+		.baudrate       = 115200,
+		.char_length    = US_MR_CHRL_8_BIT,
+		.parity_type    = US_MR_PAR_NO,
+		.stop_bits    = US_MR_NBSTOP_1_BIT    ,
+		.channel_mode   = US_MR_CHMODE_NORMAL
+	};
+
+	/* Ativa Clock periferico USART0 */
+	sysclk_enable_peripheral_clock(ID_USART1);
+
+	stdio_serial_init(CONF_UART, &usart_settings);
+
+	/* Enable the receiver and transmitter. */
+	usart_enable_tx(USART1);
+	usart_enable_rx(USART1);
+
+	/* map printf to usart */
+	ptr_put = (int (*)(void volatile*,char))&usart_serial_putchar;
+	ptr_get = (void (*)(void volatile*,char*))&usart_serial_getchar;
+
+	/* ativando interrupcao */
+	usart_enable_interrupt(USART1, US_IER_RXRDY);
+	NVIC_SetPriority(ID_USART1, 4);
+	NVIC_EnableIRQ(ID_USART1);
+}
+
+void USART1_Handler(void){
+	uint32_t ret = usart_get_status(USART1);
+
+	BaseType_t xHigherPriorityTaskWoken = pdTRUE;
+	char c;
+
+	// Verifica por qual motivo entrou na interrupçcao?
+	// RXRDY ou TXRDY
+
+	//  Dados disponível para leitura
+	if(ret & US_IER_RXRDY){
+		usart_serial_getchar(USART1, &c);
+		xQueueSendFromISR(xQueueChar, &c, &xHigherPriorityTaskWoken);
+
+		printf("%c", c);
+
+		// -  Transmissoa finalizada
+		} else if(ret & US_IER_TXRDY){
+
+	}
+}
+uint32_t usart1_puts(uint8_t *pstring){
+	uint32_t i ;
+
+	while(*(pstring + i))
+	if(uart_is_tx_empty(USART1))
+	usart_serial_putchar(USART1, *(pstring+i++));
 }
 
 /**
@@ -296,6 +409,77 @@ static void configure_console(void)
  *
  *  \return Unused (ANSI-C compatibility).
  */
+static void task_uartChar(void *pvParameters)
+{
+	char char_msg;
+	char Buffer[64] = {0};
+	int i = 0;
+
+	xQueueChar = xQueueCreate(32, sizeof(char));
+
+	while (1)
+	{
+		if (xQueueReceive(xQueueChar, &char_msg, (TickType_t)500)){
+			if (char_msg != '\n'){
+				Buffer[i] = char_msg;
+				i++;
+			}else{
+				Buffer[i] = 0;
+				xQueueSend(xQueueCommand, &Buffer, 0);
+				i = 0;
+			}
+		}
+	}
+}
+
+static void task_execute(void *pvParameters)
+{
+	char Buffer[64];
+
+	xQueueCommand = xQueueCreate(5, sizeof(char[64]));
+	int led1 = 0;
+	int led2 = 0;
+	int led3 = 0;
+	
+	int lig;
+
+	while (1)
+	{
+		if (xQueueReceive(xQueueCommand, &Buffer, (TickType_t)500))
+		{
+			printf("comando: %s\n", Buffer);
+			
+			
+			if (strcmp(Buffer, "led 1 lig") == 0) {
+				lig = 1;
+				xQueueSend(xQueueLED1l, &lig, 0);
+			}
+			if (strcmp(Buffer, "led 1 desl") == 0) {
+				lig = 0;
+				xQueueSend(xQueueLED1l, &lig, 0);
+			}
+			
+			if (strcmp(Buffer, "led 2 lig") == 0) {
+				lig = 1;
+				xQueueSend(xQueueLED2l, &lig, 0);
+			}
+			if (strcmp(Buffer, "led 2 desl") == 0) {
+				lig = 0;
+				xQueueSend(xQueueLED2l, &lig, 0);
+			}
+			
+			if (strcmp(Buffer, "led 3 lig") == 0) {
+				lig = 1;
+				xQueueSend(xQueueLED3l, &lig, 0);
+			}
+			if (strcmp(Buffer, "led 3 desl") == 0) {
+				lig = 0;
+				xQueueSend(xQueueLED3l, &lig, 0);
+			}
+		}
+	}
+}
+
 int main(void)
 {
 	/* Initialize the SAM system */
@@ -303,7 +487,8 @@ int main(void)
 	board_init();
 
 	/* Initialize the console uart */
-	configure_console();
+	//configure_console();
+	USART1_init();
 
 	/* Output demo information. */
 	printf("-- Freertos Example --\n\r");
@@ -326,6 +511,10 @@ int main(void)
 			TASK_LED_STACK_PRIORITY, NULL) != pdPASS) {
 		printf("Failed to create test led task\r\n");
 	}
+
+	xTaskCreate(task_uartChar, "UART-CHAR", TASK_UARTCHAR_STACK_SIZE, NULL, TASK_UARTCHAR_STACK_PRIORITY, NULL) != pdPASS;
+	xTaskCreate(task_execute, "EXECUTE", TASK_EXECUTE_STACK_SIZE, NULL, TASK_EXECUTE_STACK_PRIORITY, NULL) != pdPASS;
+
 
 	/* Start the scheduler. */
 	vTaskStartScheduler();
