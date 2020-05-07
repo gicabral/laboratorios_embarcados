@@ -23,10 +23,37 @@
 #define TASK_LCD_STACK_SIZE            (6*1024/sizeof(portSTACK_TYPE))
 #define TASK_LCD_STACK_PRIORITY        (tskIDLE_PRIORITY)
 
+#define NUM_TAPS   12  // ordem do filtro (quantos coefientes)
+#define BLOCK_SIZE 1   // se será processado por blocos, no caso não.
+
 typedef struct {
   uint x;
   uint y;
 } touchData;
+
+const float32_t firCoeffs32[NUM_TAPS] ={0.12269166637219883,
+	0.12466396327768503,
+	0.1259892807712678,
+	0.12665508957884833,
+	0.12665508957884833,
+	0.1259892807712678,
+	0.12466396327768503,
+0.12269166637219883};
+
+const float32_t firCoeffs32_12[NUM_TAPS] = {
+	0.07930125683894955,
+	0.08147535648783032,
+	0.08323976516671625,
+	0.08457786363832452,
+	0.08547702101550535,
+	0.085928736852674,
+	0.085928736852674,
+	0.08547702101550535,
+	0.08457786363832452,
+	0.08323976516671625,
+	0.08147535648783032,
+	0.07930125683894955
+};
 
 QueueHandle_t xQueueTouch;
 
@@ -309,6 +336,11 @@ void task_lcd(void){
   
   char buffer[64];
   int x = 0;
+  int r = 100;
+  
+  ili9488_set_foreground_color(COLOR_CONVERT(COLOR_BLUE));
+  ili9488_draw_filled_circle(ILI9488_LCD_WIDTH/2, ILI9488_LCD_HEIGHT/2, 105 );
+
 
   while (true) {
     if (xQueueReceive( xQueueTouch, &(touch), ( TickType_t )  0 / portTICK_PERIOD_MS)) {
@@ -318,6 +350,13 @@ void task_lcd(void){
     if (xQueueReceive( xQueuePlot, &(plot), ( TickType_t )  100 / portTICK_PERIOD_MS)) {     
       sprintf(buffer, "%04d", plot.raw);
       font_draw_text(&calibri_36, buffer, 0, 0, 2);
+	  
+	  	  ili9488_set_foreground_color(COLOR_CONVERT(COLOR_WHITE));
+	  	  ili9488_draw_filled_circle(r * cos(2*PI*plot.filtrado/4095) + ILI9488_LCD_WIDTH/2, r * sin(2*PI*plot.filtrado/4095) + ILI9488_LCD_HEIGHT/2, 4 );
+	  	  
+	  	  ili9488_set_foreground_color(COLOR_CONVERT(COLOR_BLUE));
+	  	  ili9488_draw_filled_circle(ILI9488_LCD_WIDTH/2, ILI9488_LCD_HEIGHT/2, 105 );
+	  
       
       printf("%d\n",plot.raw); //printa no terminal o valor de plo.raw
 
@@ -335,13 +374,25 @@ void task_lcd(void){
     // configura ADC e TC para controlar a leitura
     config_AFEC_pot(AFEC_POT, AFEC_POT_ID, AFEC_POT_CHANNEL, AFEC_pot_Callback);
     TC_init(TC0, ID_TC1, 1, 100);
- 
+	/* Cria buffers para filtragem e faz a inicializacao do filtro. */
+	float32_t firStateF32[BLOCK_SIZE + NUM_TAPS - 1];
+	float32_t inputF32[BLOCK_SIZE + NUM_TAPS - 1];
+	float32_t outputF32[BLOCK_SIZE + NUM_TAPS - 1];
+	arm_fir_instance_f32 S;
+	arm_fir_init_f32(&S, NUM_TAPS, (float32_t *)&firCoeffs32_12[0], &firStateF32[0], BLOCK_SIZE);
+	int i = 0;
     while(1){
       
      if(xQueueReceive( xQueueADC, &(adc), 100)){
-       plot.raw = (int) adc.value;
-       plot.filtrado = (int) adc.value+100;
-       xQueueSend(xQueuePlot, &plot, 0);
+       if(i <= NUM_TAPS){
+	       inputF32[i++] = (float) adc.value;
+	       } else{
+	       arm_fir_f32(&S, &inputF32[0], &outputF32[0], BLOCK_SIZE);
+	       plot.raw = (int) inputF32[0];
+	       plot.filtrado = (int) outputF32[0];
+	       xQueueSend(xQueuePlot, &plot, 0);
+	       i = 0;
+		   }
       }
     }
   }
